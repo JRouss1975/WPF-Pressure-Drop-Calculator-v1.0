@@ -6,6 +6,7 @@ using BasicInterpolation;
 using System.IO.Packaging;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
+using System.Windows.Controls;
 
 namespace WPF_PressureDrop
 {
@@ -122,6 +123,7 @@ namespace WPF_PressureDrop
                 if (this.ElementType == ItemType.Bend) return "/Resources/Bend.png";
                 if (this.ElementType == ItemType.Expander) return "/Resources/Expander.png";
                 if (this.ElementType == ItemType.Reducer) return "/Resources/Reducer.png";
+                if (this.ElementType == ItemType.Tee) return "/Resources/Tee.png";
                 if (this.ElementType == ItemType.Butterfly || this.ElementType == ItemType.Check) return "/Resources/ButterflyValve.png";
                 return "/Resources/MainIcon.png";
             }
@@ -179,10 +181,55 @@ namespace WPF_PressureDrop
             }
         }
 
+        private double _Qcomb;
+        public double Qcomb
+        {
+            get { return _Qcomb; }
+            set
+            {
+                if (value != _Qcomb)
+                {
+                    _Qcomb = value;
+                    NotifyChange("");
+                }
+            }
+        }
+
+        private double _Qbranch;
+        public double Qbranch
+        {
+            get { return _Qbranch; }
+            set
+            {
+                if (value != _Qbranch)
+                {
+                    _Qbranch = value;
+                    NotifyChange("");
+                }
+            }
+        }
+
+
         /// <summary>
         /// Type of fitting
         /// </summary>
-        public ItemType ElementType { get; set; }
+        private ItemType _ElementType;
+        public ItemType ElementType
+        {
+            get { return _ElementType; }
+            set
+            {
+                if (value != _ElementType)
+                {
+                    _ElementType = value;
+
+                    if (_ElementType == ItemType.Tee && a == 0)
+                        a = 90;
+
+                    NotifyChange("");
+                }
+            }
+        }
 
         /// <summary>
         /// Length of pipe (m).
@@ -219,12 +266,12 @@ namespace WPF_PressureDrop
         }
 
         /// <summary>
-        /// Reducer/Expander small diamerer d1 in [mm].
+        /// Reducer/Expander small diamerer or branch diameter d1 in [mm].
         /// </summary>
         public double d1 { get; set; }
 
         /// <summary>
-        /// Reducer/Expander large diamerer d2 in [mm].
+        /// Reducer/Expander large diamerer or comp diameter d2 in [mm].
         /// </summary>
         public double d2 { get; set; }
 
@@ -241,7 +288,19 @@ namespace WPF_PressureDrop
         /// <summary>
         /// Mitre Bend angle a in [deg].
         /// </summary>
-        public double a { get; set; }
+        private double _a;
+        public double a
+        {
+            get { return _a; }
+            set
+            {
+                if (value != _a)
+                {
+                    _a = value;
+                    NotifyChange("");
+                }
+            }
+        }
 
         /// <summary>
         /// Weight of item W in [kg].
@@ -294,7 +353,7 @@ namespace WPF_PressureDrop
         }
 
         /// <summary>
-        /// Reducer/Expander small diamerer D1 in [m].
+        /// Reducer/Expander small diamerer or branch diameter D1 in [m].
         /// </summary>
         private double D1
         {
@@ -302,12 +361,26 @@ namespace WPF_PressureDrop
         }
 
         /// <summary>
-        /// Reducer/Expander large diamerer D2 in [m].
+        /// Reducer/Expander large or comp diameter d2 diamerer D2 in [m].
         /// </summary>
         private double D2
         {
             get { return d2 / 1000; }
         }
+
+        /// <summary>
+        /// Diameter ration for Tee calculation Equation 2-34.
+        /// </summary>
+        private double Bbranch
+        {
+            get
+            {
+                if (D2 > 0)
+                    return D1 / D2;
+                return 0;
+            }
+        }
+
 
         /// <summary>
         /// q, rate of flow at flowing conditions m3/sec,
@@ -513,6 +586,15 @@ namespace WPF_PressureDrop
                         break;
 
                     case ItemType.Tee:
+                        if (Qbranch < Qcomb)
+                        {
+                            k = GetTeeKConverging();
+                        }
+                        else
+                        {
+                            k = GetTeeKDiverging();
+                        }
+
                         break;
 
                     case ItemType.Butterfly:
@@ -577,6 +659,90 @@ namespace WPF_PressureDrop
         #endregion
 
         #region METHODS
+
+        private double GetTeeKConverging()
+        {
+            double Krun, Kbranch;
+            double Qr = Qbranch / Qcomb;
+            double B2 = Math.Pow(Bbranch, 2);
+            double C, D, E, F, C1 = 0, D1 = 0, E1 = 0, F1 = 0;
+
+            //C Calculation
+            if (B2 <= 0.35)
+                C = 1;
+            else
+            {
+                if (Qr <= 0.35)
+                    C = 0.9 * (1 - Qr);
+                else
+                {
+                    C = 0.55;
+                }
+            }
+
+            //Table 2-1 Constants for Equation 2-35
+            switch (a)
+            {
+                case 30.0:
+                    D = 1;
+                    E = 2;
+                    F = 1.74;
+                    C1 = 1;
+                    D1 = 0;
+                    E1 = 1;
+                    F1 = 1.74;
+                    break;
+
+                case 45.0:
+                    D = 1;
+                    E = 2;
+                    F = 1.41;
+                    C1 = 1;
+                    D1 = 0;
+                    E1 = 1;
+                    F1 = 1.41;
+                    break;
+
+                case 60.0:
+                    D = 1;
+                    E = 2;
+                    F = 1;
+                    C1 = 1;
+                    D1 = 0;
+                    E1 = 1;
+                    F1 = 1;
+                    break;
+
+                default:
+                    D = 1;
+                    E = 2;
+                    F = 0;
+                    break;
+            }
+
+
+            //Equation 2-35
+            Kbranch = C * (1 + D * Math.Pow((Qr * (1 / B2)), 2) - E * Math.Pow(1 - Qr, 2) - F * (1 / B2) * (Math.Pow(Qr, 2)));
+            Krun = C1 * (1 + D1 * Math.Pow((Qr * (1 / B2)), 2) - E1 * Math.Pow(1 - Qr, 2) - F1 * (1 / B2) * (Math.Pow(Qr, 2)));
+
+            //Equation 2-36
+            if (a == 90)
+            {
+                Krun = 1.55 * Qr - Math.Pow(Qr, 2);
+            }
+
+            return Krun + Kbranch;
+        }
+
+        private double GetTeeKDiverging()
+        {
+
+
+
+
+            return -1;
+        }
+
         public double Distance(double x1, double x2, double y1, double y2, double z1, double z2)
         {
             return Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2) + Math.Pow(z2 - z1, 2));

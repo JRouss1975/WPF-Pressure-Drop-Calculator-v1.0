@@ -32,7 +32,7 @@ namespace WPF_PressureDrop
         {
             InitializeComponent();
             DataContext = lstHeadLossCalcs;
-           
+
         }
 
         private void menuNew_Click(object sender, RoutedEventArgs e)
@@ -54,6 +54,9 @@ namespace WPF_PressureDrop
                         _fileStream.Position = 0;
                         lstHeadLossCalcs = (ObservableCollection<HeadLossCalc>)_xmlFormatter.Deserialize(_fileStream);
                     }
+
+                    this.Title = "Piping System Friction Head Loss Calculator v1.0 - " + _openFileDialog.FileName;
+
                     dgvCalc.ItemsSource = lstHeadLossCalcs;
 
                     Draw();
@@ -542,7 +545,7 @@ namespace WPF_PressureDrop
 
         }
 
-        private List<HeadLossCalc> copiedItems ;
+        private List<HeadLossCalc> copiedItems;
         private void menuCopyItem_Click(object sender, RoutedEventArgs e)
         {
             copiedItems = new List<HeadLossCalc>();
@@ -644,6 +647,16 @@ namespace WPF_PressureDrop
             if (_saveFileDialog.ShowDialog() == true)
             {
                 View1.Export(_saveFileDialog.FileName);
+            }
+        }
+
+        private void menuRemoveDuplicates_Click(object sender, RoutedEventArgs e)
+        {
+            var distinct = lstHeadLossCalcs.Distinct<HeadLossCalc>(new ItemEqualityComparer()).ToList<HeadLossCalc>();
+            lstHeadLossCalcs.Clear();
+            foreach (var item in distinct)
+            {
+                lstHeadLossCalcs.Add(item);
             }
         }
     }
